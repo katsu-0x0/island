@@ -137,10 +137,12 @@ th,td {
   pointer-events: none; /* 画像操作の邪魔をしない */
 }
 
-/* ===== 画面サイズ調整 ===== */
-img {
-  max-width: 100%;
-  height: auto;
+/* ===== スマホ用縮小スケール ===== */
+@media (max-width: 768px) {
+  .placement-grid {
+    transform: scale(0.7);
+    transform-origin: top left;
+  }
 }
 
 
