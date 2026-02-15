@@ -72,6 +72,7 @@ th,td {
   gap: 4px;
 }
 
+
 .place-cell {
   border: 1px solid #999;
   padding: 6px;
@@ -106,8 +107,8 @@ th,td {
 /* ===== Excelマップ ===== */
 .map-grid {
   position: relative;
-  width: 900px;          /* Excel画像の実寸に合わせる */
-  height: 600px;
+  width: 750px;/*900*/          /* Excel画像の実寸に合わせる */
+  height: 500px;/*600*/
   background-size: contain;
   background-repeat: no-repeat;
   background-position: center;
@@ -136,15 +137,6 @@ th,td {
   font-weight: bold;
   pointer-events: none; /* 画像操作の邪魔をしない */
 }
-
-/* ===== スマホ用縮小スケール ===== */
-@media (max-width: 768px) {
-  .placement-grid {
-    transform: scale(0.7);
-    transform-origin: top left;
-  }
-}
-
 
 </style>
 </head>
@@ -619,66 +611,6 @@ function renderDay2() {
 /* =============================
    3日目 描画
 ============================= */
-/*
-function renderDay3() {
-
-  const area = document.getElementById("day3-area");
-  if (!area) return;
-
-  area.innerHTML = "";
-
-  DAY3_ISLANDS.forEach(island => {
-
-    const table = document.createElement("table");
-
-    table.innerHTML = `
-      <tr><th colspan="4">${island}</th></tr>
-      <tr>
-        <th>順位</th>
-        <th>団名</th>
-        <th class="small">戦力順位</th>
-        <th>結果</th>
-      </tr>
-    `;
-
-    const list = groups
-      .filter(g => g.day3 && g.day3.island === island)
-      .sort((a,b)=>a.powerRankAll-b.powerRankAll);
-
-    list.forEach(g => {
-
-      const tr = document.createElement("tr");
-
-      tr.innerHTML = `
-        <td class="input-cell">
-          <div class="edit rank"
-               id="day3-rank-${g.id}"
-               contenteditable>${g.day3.rank ?? ""}</div>
-        </td>
-        <td>${g.name ?? ""}</td>
-        <td class="small">${g.powerRankAll ?? ""}位</td>
-        <td class="result"></td>
-      `;
-
-      const rankEl = tr.querySelector(`#day3-rank-${g.id}`);
-      if (rankEl) {
-        rankEl.oninput = e => {
-          const v = sanitizeNumberEditable(e.target);
-          g.day3.rank = Number(v);
-          calcDay3();
-          //renderDay3();
-        };
-      }
-
-      table.appendChild(tr);
-    });
-
-    area.appendChild(table);
-  });
-
-  calcDay3();
-}
-*/
 function renderDay3() {
 
   const area = document.getElementById("day3-area");
@@ -752,6 +684,11 @@ function calcTotalPoints() {
       const island = g.day2.result.island;
       const rank = g.day2.result.rank;
       total += POINT_TABLE[island]?.[rank-1] ?? 0;
+    }
+
+    // 3日目
+    if(g.day3?.rank){
+      total += getPoint(g.day3.rank);
     }
 
     g.totalPoint = total;
