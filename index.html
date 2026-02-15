@@ -107,7 +107,7 @@ th,td {
 /* ===== Excelマップ ===== */
 .map-grid {
   position: relative;
-  width: 750px;/*900*/          /* Excel画像の実寸に合わせる */
+  width: 600px;/*900*/          /* Excel画像の実寸に合わせる */
   height: 500px;/*600*/
   background-size: contain;
   background-repeat: no-repeat;
@@ -226,6 +226,7 @@ const POINT_TABLE = {
   "３Ａ": [3550,3230,2940,2670,2670,2430,2430,2430]
 };
 
+const DAY1_POINT = [1200,1000,800,600,600,400,400,400];
 
 //島配置の記載位置調整
 const FIXED_POSITIONS = [
@@ -672,23 +673,23 @@ function calcTotalPoints() {
   groups.forEach(g => {
     let total = 0;
 
-    // 1日目
-    if (g.day1Result) {
-      const island = g.day1Result.island;
-      const rank = g.day1Result.rank;
-      total += POINT_TABLE[island]?.[rank-1] ?? 0;
+    // 1日目（順位のみで計算）
+    if (g.day1Rank) {
+      total += DAY1_POINT[g.day1Rank - 1] ?? 0;
     }
 
-    // 2日目
-    if (g.day2?.result) {
-      const island = g.day2.result.island;
-      const rank = g.day2.result.rank;
-      total += POINT_TABLE[island]?.[rank-1] ?? 0;
+    // 2日目（現在の島）
+    if (g.day2?.island && g.day2?.rank) {
+      const island = g.day2.island;
+      const rank = g.day2.rank;
+      total += POINT_TABLE[island]?.[rank - 1] ?? 0;
     }
 
-    // 3日目
-    if(g.day3?.rank){
-      total += getPoint(g.day3.rank);
+    // 3日目（現在の島）
+    if (g.day3?.island && g.day3?.rank) {
+      const island = g.day3.island;
+      const rank = g.day3.rank;
+      total += POINT_TABLE[island]?.[rank - 1] ?? 0;
     }
 
     g.totalPoint = total;
@@ -702,6 +703,7 @@ function calcTotalPoints() {
     g.totalRank = i+1;
   });
 }
+
 
 
 /* =============================
