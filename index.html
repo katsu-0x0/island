@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport"
+  content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>島配置管理</title>
+
+<style>
+body {
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  margin: 6px;
+}
+h1,h2 { margin: 4px 0; }
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.tab {
+  flex: 1;
+  padding: 5px 0;
+  font-size: 13px;
+  border: 1px solid #999;
+  background: #eee;
+}
+.tab.active { background: #bbdefb; font-weight: bold; }
+
+button.reset {
+  width: 100%;
+  margin: 6px 0;
+  padding: 6px;
+  font-size: 13px;
+}
+
+.tab-content { display:none; }
+.tab-content.active { display:block; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin-bottom: 8px;
+}
+th,td {
+  border: 1px solid #999;
+  padding: 2px;
+  font-size: 12px;
+  text-align: center;
+}
+.input-cell { background: #e3f2fd; }
+
+.edit {
+  height: 20px;
+  line-height: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  outline: none;
+}
+.edit:focus { background: #bbdefb; }
+
+.rank-error { background: #ffcdd2 !important; }
+.result { font-size: 11px; font-weight: bold; }
+.error { color: red; }
+.small { font-size: 10px; }
+
+.placement-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.place-cell {
+  border: 1px solid #999;
+  padding: 6px;
+  font-size: 12px;
+  text-align: center;
+  background: #f5f5f5;
+}
+
+/* ===== 配置表示用 選択中ボタン ===== */
+.placement-tab,
+.placement-day-tab,
+.placement-island-tab {
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid #999;
+  background: #eee;
+}
+
+.placement-tab.active,
+.placement-day-tab.active,
+.placement-island-tab.active {
+  background: #bbdefb;
+  font-weight: bold;
+}
+
+/* ===== 全体ラッパー ===== */
+.map-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+/* ===== Excelマップ ===== */
+.map-grid {
+  position: relative;
+  width: 900px;          /* Excel画像の実寸に合わせる */
+  height: 600px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* ===== CSS Grid（Excelのマス数に合わせる） ===== */
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(40, 1fr);  /* 横40マス */
+  grid-template-rows: repeat(40, 1fr);     /* 縦40マス */
+}
+
+/* ===== はみ出し調整 ===== */
+.map-group {
+  white-space: nowrap;
+  overflow: visible;
+}
+
+
+/* ===== 団名セル ===== */
+.map-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: bold;
+  pointer-events: none; /* 画像操作の邪魔をしない */
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>島配置管理</h1>
+
+<div class="tabs">
+  <button class="tab active" data-tab="day1">1日目</button>
+  <button class="tab" data-tab="day2">2日目</button>
+  <button class="tab" data-tab="day3">3日目</button>
+  <button class="tab" data-tab="placement">配置表示</button>
+</div>
+
+<button class="reset" onclick="resetAll()">入力情報を初期化</button>
+
+<div id="placement" class="tab-content">
+<div class="tabs">
+  <button class="placement-day-tab" onclick="showPlacementDay('day1')">1日目配置</button>
+  <button class="placement-day-tab" onclick="showPlacementDay('day2')">2日目配置</button>
+  <button class="placement-day-tab" onclick="showPlacementDay('day3')">3日目配置</button>
+</div>
+
+
+  <div class="tabs" id="placement-islands"></div>
+
+  <div id="placementView" class="map-wrapper">
+  <div id="placementGrid" class="map-grid"></div>
+
+</div>
+
+</div>
+
+
+<div id="day1" class="tab-content active">
+  <h2>１日目</h2>
+  <div id="day1-area"></div>
+</div>
+
+<div id="day2" class="tab-content">
+  <h2>２日目</h2>
+  <div id="day2-area"></div>
+</div>
+
+<div id="day3" class="tab-content">
+  <h2>３日目</h2>
+  <div id="day3-area"></div>
+</div>
+
+
+
+<script>
+/* =============================
+   定数
+============================= */
+const DAY1_ISLANDS = ["１Ａ", "１Ｂ", "１Ｃ", "１Ｄ"];
+const DAY2_ISLANDS = ["２Ａ", "２Ｂ", "１Ａ", "１Ｂ"];
+const DAY3_ISLANDS = ["３Ａ", "２Ａ", "２Ｂ", "１Ａ"];
+const RANKS = [1,2,3,4,5,6,7,8];
+const INITIAL_POWER = {
+  "１Ａ": [32,28,24,20,16,12,8,4],
+  "１Ｂ": [31,27,23,19,15,11,7,3],
+  "１Ｃ": [30,26,22,18,14,10,6,2],
+  "１Ｄ": [29,25,21,17,13,9,5,1]
+};
+const PLACEMENT_ISLANDS = {
+  day1: ["１Ａ", "１Ｂ", "１Ｃ", "１Ｄ"],
+  day2: ["２Ａ", "２Ｂ", "１Ａ", "１Ｂ"],
+  day3: ["３Ａ", "２Ａ", "２Ｂ", "１Ａ"]
+};
+const STORAGE_KEY = "shima_manager_day1";
+//const data = getPlacementData(day, island);
+
+/* =============================
+   島ポイントテーブル
+============================= */
+const POINT_TABLE = {
+  "１Ａ": [1200,1000,800,600,600,400,400,400],
+  "１Ｂ": [1200,1000,800,600,600,400,400,400],
+  "１Ｃ": [1200,1000,800,600,600,400,400,400],
+  "１Ｄ": [1200,1000,800,600,600,400,400,400],
+
+  "２Ａ": [1680,1400,1120,840,840,560,560,560],
+  "２Ｂ": [1680,1400,1120,840,840,560,560,560],
+
+  "３Ａ": [3550,3230,2940,2670,2670,2430,2430,2430]
+};
+
+
+//島配置の記載位置調整
+const FIXED_POSITIONS = [
+  { col:37, row:25 }, //col：左右 row：上下
+  { col:3, row:25 },
+  { col:29, row:34 },
+  { col:12, row:34 },
+  { col:31, row:10 },
+  { col:10, row:10 },
+  { col:20, row:39 },
+  { col:20, row:3 }
+];
+
+let groups = [];
+let currentPlacementDay = "day1";
+
+/* =============================
+   島配置表示選択
+============================= */
+function showPlacementDay(day) {
+  currentPlacementDay = day;
+
+  // 日付ボタンの色切替
+  document.querySelectorAll(".placement-day-tab")
+    .forEach(b => b.classList.remove("active"));
+  event.target.classList.add("active");
+
+  const islandTabs = document.getElementById("placement-islands");
+  islandTabs.innerHTML = "";
+
+  PLACEMENT_ISLANDS[day].forEach(island => {
+    const b = document.createElement("button");
+    b.className = "placement-island-tab";
+    b.textContent = island;
+    b.onclick = () => selectPlacementIsland(day, island, b);
+    islandTabs.appendChild(b);
+  });
+
+  // 最初の島を自動選択
+  const first = islandTabs.querySelector("button");
+  if (first) {
+    first.classList.add("active");
+    renderPlacement(day, first.textContent);
+  }
+}
+
+function selectPlacementIsland(day, island, btn) {
+  document.querySelectorAll(".placement-island-tab")
+    .forEach(b => b.classList.remove("active"));
+
+  btn.classList.add("active");
+  renderPlacement(day, island);
+}
+
+function getPlacementData(day, island) {
+  let list = [];
+
+  // 1日目（初期島）
+  if (day === "day1") {
+    list = groups
+      .filter(g => g.day1Island === island)
+      .sort((a,b)=>a.day1Rank-b.day1Rank);
+  }
+
+  // 2日目（1日目結果から引き継いだ島）
+  if (day === "day2") {
+    list = groups
+      .filter(g => g.day2?.island === island)
+      .sort((a,b)=>a.day2.rank-b.day2.rank);
+  }
+
+  // 3日目（2日目結果から決定した島）
+  if (day === "day3") {
+    list = groups
+      .filter(g => g.day2?.result?.island === island)
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll);
+  }
+
+  return list.map(g => g.name || "").slice(0, 8);
+}
+
+function setPlacementBackground() {
+  const grid = document.getElementById("placementGrid");
+  if (!grid) return;
+
+  grid.style.backgroundImage = "url('map_day.png')";
+}
+
+
+/* =============================
+   島配置 描画
+============================= */
+function renderPlacement(day, island) {
+  const grid = document.getElementById("placementGrid");
+  if (!grid) return;
+
+  grid.innerHTML = "";
+
+  setPlacementBackground();
+
+  const names = getPlacementData(day, island);
+
+  names.forEach((name, i) => {
+    if (!FIXED_POSITIONS[i]) return;
+
+    const d = document.createElement("div");
+    d.className = "map-group";
+    d.textContent = name;
+
+    d.style.gridColumn = FIXED_POSITIONS[i].col;
+    d.style.gridRow = FIXED_POSITIONS[i].row;
+
+    grid.appendChild(d);
+  });
+}
+
+
+/* =============================
+   初期化
+============================= */
+document.addEventListener("DOMContentLoaded", () => {
+  initTabs();
+
+  if (loadData()) {
+    renderDay1();   // ★ 保存データ復元
+  } else {
+    resetAll(false);
+  }
+});
+
+
+/* =============================
+   数字入力以外削除
+============================= */
+function sanitizeNumberEditable(el) {
+  // 全角数字 → 半角
+  let v = el.textContent.replace(/[０-９]/g, s =>
+    String.fromCharCode(s.charCodeAt(0) - 0xFEE0)
+  );
+
+  // 数字以外を削除
+  v = v.replace(/[^0-9]/g, "");
+
+  if (el.textContent !== v) {
+    el.textContent = v;
+
+    // カーソルを末尾に戻す
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  return v;
+}
+
+/* =============================
+   入力内容の自動保存
+============================= */
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(groups));
+}
+
+/* =============================
+   入力内容の復元処理
+============================= */
+function loadData() {
+  const data = localStorage.getItem(STORAGE_KEY);
+  if (!data) return false;
+
+  try {
+    groups = JSON.parse(data);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+
+/* =============================
+   タブ
+============================= */
+function initTabs() {
+  document.querySelectorAll(".tab").forEach(t => {
+    t.onclick = () => {
+      document.querySelectorAll(".tab,.tab-content")
+        .forEach(e => e.classList.remove("active"));
+      t.classList.add("active");
+      document.getElementById(t.dataset.tab).classList.add("active");
+
+      if (t.dataset.tab === "day2") renderDay2();
+      if (t.dataset.tab === "day3") renderDay3();
+    };
+  });
+}
+
+
+/* =============================
+   リセット
+============================= */
+function resetAll(confirmFlg=true) {
+  if (confirmFlg && !confirm("すべての入力を初期化しますか？")) return;
+  localStorage.removeItem(STORAGE_KEY);
+  groups = [];
+  DAY1_ISLANDS.forEach(island => {
+    RANKS.forEach(r => {
+      groups.push({
+        id: island+"_"+r,
+        day1Island: island,
+        day1Rank: r,
+        name: "",
+        power: INITIAL_POWER[island][r-1], // ★ 初期戦力
+        powerRankAll: null,   // ★ 全体戦力順位（1〜32）
+        rankInTarget: null,   // ★ 1島/2島 内部順位（非表示）
+        day1Result: null,
+
+        day2: {
+          island: null,   // "2A","2B","1A","1B"
+          rank: null,
+          result: null
+        },
+
+        day3: {
+          island: null,
+          rank: null,
+          result: null
+        }
+
+      });
+    });
+  });
+  renderDay1();
+}
+
+/* =============================
+   1日目 描画
+============================= */
+function renderDay1() {
+  const area = document.getElementById("day1-area");
+  area.innerHTML = "";
+
+  DAY1_ISLANDS.forEach(island => {
+    const table = document.createElement("table");
+    table.innerHTML = `
+      <tr><th colspan="5">${island}</th></tr>
+      <tr>
+        <th>順位</th>
+        <th>団名</th>
+        <th>戦力</th>
+        <th class="small">戦力順位</th>
+        <th>結果</th>
+      </tr>`;
+
+    groups.filter(g=>g.day1Island===island).forEach(g => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="input-cell">
+          <div class="edit rank" id="rank-${g.id}" contenteditable>${g.day1Rank}</div>
+        </td>
+        <td class="input-cell">
+          <div class="edit name" id="name-${g.id}" contenteditable>${g.name}</div>
+        </td>
+        <td class="input-cell">
+          <div class="edit power" id="power-${g.id}" contenteditable>${g.power}</div>
+        </td>
+        <td id="p-${g.id}" class="small"></td>
+        <td id="r1-${g.id}" class="result"></td>
+      `;
+
+      tr.querySelector(`#rank-${g.id}`).oninput = e=>{
+        const v = sanitizeNumberEditable(e.target);
+        g.day1Rank = Number(v);
+        calcDay1();
+      };
+      tr.querySelector(`#name-${g.id}`).oninput = e=>{
+        g.name = e.target.textContent;
+      };
+      tr.querySelector(`#power-${g.id}`).oninput = e=>{
+        const v = sanitizeNumberEditable(e.target);
+        g.power = Number(v);
+        calcDay1();
+      };
+
+      table.appendChild(tr);
+    });
+
+    area.appendChild(table);
+  });
+
+  calcDay1();
+}
+
+/* =============================
+   1日目⇒2日目引き継ぎ処理
+============================= */
+function transferDay1ToDay2() {
+
+  // ① まず島だけ引き継ぐ
+  groups.forEach(g => {
+    if (!g.day1Result) return;
+
+    const from = g.day1Result.island;
+
+    if (from === "１Ａ") g.day2.island = "１Ａ";
+    if (from === "１Ｂ") g.day2.island = "１Ｂ";
+    if (from === "２Ａ") g.day2.island = "２Ａ";
+    if (from === "２Ｂ") g.day2.island = "２Ｂ";
+  });
+
+  // ② 島ごとに戦力順で 1～8 を振る
+  DAY2_ISLANDS.forEach(island => {
+    const list = groups
+      .filter(g => g.day2.island === island)
+      .sort((a, b) => a.powerRankAll - b.powerRankAll);
+
+    list.forEach((g, i) => {
+      g.day2.rank = i + 1; // ★ 戦力順 1～8
+    });
+  });
+}
+
+
+/* =============================
+   2日目 描画
+============================= */
+function renderDay2() {
+  const area = document.getElementById("day2-area");
+  area.innerHTML = "";
+
+  DAY2_ISLANDS.forEach((island, idx) => {
+    const table = document.createElement("table");
+
+    table.innerHTML = `
+      <tr><th colspan="4">${island}</th></tr>
+      <tr>
+        <th>順位</th>
+        <th>団名</th>
+        <th class="small">戦力順位</th>
+        <th>結果</th>
+      </tr>
+    `;
+
+    groups
+      .filter(g => g.day2?.island === island)
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll)
+      .forEach(g => {
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="input-cell">
+            <div class="edit rank"
+                id="day2-rank-${g.id}"
+                contenteditable>${g.day2.rank ?? ""}</div>
+          </td>
+          <td>${g.name ?? ""}</td>
+          <td class="small">${g.powerRankAll}位</td>
+          <td class="result"></td>
+        `;
+
+        /* ===== 1日目と同じ入力処理 ===== */
+        tr.querySelector(`#day2-rank-${g.id}`).oninput = e => {
+          const v = sanitizeNumberEditable(e.target);
+          g.day2.rank = Number(v);
+          //validateDay2Ranks();
+          calcDay2();
+          renderDay2();       // 再描画
+          renderDay3();       // 反映処理
+        };
+
+        table.appendChild(tr);
+      });
+      area.appendChild(table);
+  });
+  calcDay2();
+
+
+}
+
+
+/* =============================
+   3日目 描画
+============================= */
+/*
+function renderDay3() {
+
+  const area = document.getElementById("day3-area");
+  if (!area) return;
+
+  area.innerHTML = "";
+
+  DAY3_ISLANDS.forEach(island => {
+
+    const table = document.createElement("table");
+
+    table.innerHTML = `
+      <tr><th colspan="4">${island}</th></tr>
+      <tr>
+        <th>順位</th>
+        <th>団名</th>
+        <th class="small">戦力順位</th>
+        <th>結果</th>
+      </tr>
+    `;
+
+    const list = groups
+      .filter(g => g.day3 && g.day3.island === island)
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll);
+
+    list.forEach(g => {
+
+      const tr = document.createElement("tr");
+
+      tr.innerHTML = `
+        <td class="input-cell">
+          <div class="edit rank"
+               id="day3-rank-${g.id}"
+               contenteditable>${g.day3.rank ?? ""}</div>
+        </td>
+        <td>${g.name ?? ""}</td>
+        <td class="small">${g.powerRankAll ?? ""}位</td>
+        <td class="result"></td>
+      `;
+
+      const rankEl = tr.querySelector(`#day3-rank-${g.id}`);
+      if (rankEl) {
+        rankEl.oninput = e => {
+          const v = sanitizeNumberEditable(e.target);
+          g.day3.rank = Number(v);
+          calcDay3();
+          //renderDay3();
+        };
+      }
+
+      table.appendChild(tr);
+    });
+
+    area.appendChild(table);
+  });
+
+  calcDay3();
+}
+*/
+function renderDay3() {
+
+  const area = document.getElementById("day3-area");
+  area.innerHTML = "";
+
+  DAY3_ISLANDS.forEach(island => {
+
+    const table = document.createElement("table");
+
+    table.innerHTML = `
+      <tr><th colspan="4">${island}</th></tr>
+      <tr>
+        <th>順位</th>
+        <th>団名</th>
+        <th class="small">戦力順位</th>
+        <th>結果</th>
+      </tr>
+    `;
+
+    groups
+      .filter(g => g.day3?.island === island)
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll)
+      .forEach(g => {
+
+        const tr = document.createElement("tr");
+
+        tr.innerHTML = `
+          <td class="input-cell">
+            <div class="edit rank"
+                 id="day3-rank-${g.id}"
+                 contenteditable>${g.day3.rank ?? ""}</div>
+          </td>
+          <td>${g.name ?? ""}</td>
+          <td class="small">${g.powerRankAll ?? ""}位</td>
+          <td id="r3-${g.id}" class="result"></td>
+        `;
+
+        tr.querySelector(`#day3-rank-${g.id}`).oninput = e => {
+          const v = sanitizeNumberEditable(e.target);
+          g.day3.rank = Number(v);
+          calcDay3();   // ★ 再描画しない
+        };
+
+        table.appendChild(tr);
+      });
+
+    area.appendChild(table);
+  });
+
+  calcDay3();
+}
+
+
+/* =============================
+   合計ポイント計算
+============================= */
+function calcTotalPoints() {
+
+  groups.forEach(g => {
+    let total = 0;
+
+    // 1日目
+    if (g.day1Result) {
+      const island = g.day1Result.island;
+      const rank = g.day1Result.rank;
+      total += POINT_TABLE[island]?.[rank-1] ?? 0;
+    }
+
+    // 2日目
+    if (g.day2?.result) {
+      const island = g.day2.result.island;
+      const rank = g.day2.result.rank;
+      total += POINT_TABLE[island]?.[rank-1] ?? 0;
+    }
+
+    g.totalPoint = total;
+  });
+
+  // 総合順位決定（高い順）
+  const sorted = [...groups]
+    .sort((a,b)=>b.totalPoint-a.totalPoint);
+
+  sorted.forEach((g,i)=>{
+    g.totalRank = i+1;
+  });
+}
+
+
+/* =============================
+   島配置 表示
+============================= */
+function showTab(tabId) {
+  document.querySelectorAll(".tab-content")
+    .forEach(e => e.classList.remove("active"));
+
+  document.getElementById(tabId).classList.add("active");
+
+  // 配置タブの色切替
+  document.querySelectorAll(".placement-tab")
+    .forEach(b => b.classList.remove("active"));
+  if (tabId === "placement") {
+    document.querySelector(".placement-tab")?.classList.add("active");
+    showPlacementDay("day1");
+  }
+}
+
+
+/* =============================
+   1日目 計算（完全版）
+============================= */
+function calcDay1(){
+  groups.forEach(g=>{
+    g.day1Result = null;
+    g.powerRankAll = null;
+    g.rankInTarget = null;
+  });
+  clearRankErrors();
+
+  let hasAnyError = false;
+
+  // ---- 順位エラーチェック（島単位）
+  DAY1_ISLANDS.forEach(island=>{
+    const list = groups.filter(g=>g.day1Island===island);
+    const seen = {};
+
+    list.forEach(g=>{
+      if(!g.day1Rank || g.day1Rank<1 || g.day1Rank>8){
+        markRankError(g);
+        hasAnyError = true;
+      }
+      if(seen[g.day1Rank]){
+        markRankError(g);
+        markRankError(seen[g.day1Rank]);
+        hasAnyError = true;
+      }
+      seen[g.day1Rank] = g;
+    });
+  });
+
+  // エラーがあれば結果は全島エラー表示
+  if(hasAnyError){
+    groups.forEach(g=>{
+      document.getElementById(`p-${g.id}`).textContent = "";
+      const r=document.getElementById(`r1-${g.id}`);
+      r.textContent="エラー";
+      r.classList.add("error");
+    });
+    return;
+  }
+
+  // ---- 全体戦力順位（1〜32）
+  [...groups]
+    .sort((a,b)=>b.power-a.power)
+    .forEach((g,i)=>g.powerRankAll=i+1);
+
+  // ---- 1島 / 2島 振り分け
+  const island1 = [];
+  const island2 = [];
+
+  groups.forEach(g=>{
+    if(g.day1Rank<=4) island2.push(g);
+    else island1.push(g);
+  });
+
+  // ---- 内部順位（非表示）
+  [island1,island2].forEach(list=>{
+    list
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll)
+      .forEach((g,i)=>g.rankInTarget=i+1);
+  });
+
+  // ---- a / b 交互配置
+  assignAB(island1,"１Ａ","１Ｂ");
+  assignAB(island2,"２Ａ","２Ｂ");
+
+  // ---- 表示
+  groups.forEach(g=>{
+    document.getElementById(`p-${g.id}`).textContent =
+      g.powerRankAll ? g.powerRankAll+"位" : "";
+
+    const r=document.getElementById(`r1-${g.id}`);
+    r.classList.remove("error");
+    r.textContent = `${g.day1Result.island}-${g.day1Result.rank}位`;
+  });
+
+  saveData();
+  transferDay1ToDay2();
+
+
+}
+
+/* =============================
+   2日目 計算（完全版）
+============================= */
+function calcDay2() {
+
+  // 初期化
+  groups.forEach(g => {
+    g.day2.result = null;
+  });
+
+  clearDay2RankErrors();
+
+  let hasAnyError = false;
+
+  /* ===== 順位チェック ===== */
+  DAY2_ISLANDS.forEach(island => {
+    const list = groups.filter(g => g.day2.island === island);
+    const seen = {};
+
+    list.forEach(g => {
+      const v = g.day2.rank;
+
+      if (!v || v < 1 || v > 8) {
+        markDay2RankError(g);
+        hasAnyError = true;
+      }
+      if (seen[v]) {
+        markDay2RankError(g);
+        markDay2RankError(seen[v]);
+        hasAnyError = true;
+      }
+      seen[v] = g;
+    });
+  });
+
+  // エラー時は結果表示を消す
+  if (hasAnyError) {
+    groups.forEach(g => {
+      const el = document.querySelector(`#day2-rank-${g.id}`)?.closest("tr")?.querySelector(".result");
+      if (el) el.textContent = "エラー";
+    });
+    return;
+  }
+
+  /* ===== 振り分け ===== */
+  const to3A = [];
+  const to2 = [];
+  const to1A = [];
+
+  groups.forEach(g => {
+    const island = g.day2.island;
+    const rank = g.day2.rank;
+
+    if ((island === "２Ａ" || island === "２Ｂ") && rank <= 4) to3A.push(g);
+    else if ((island === "２Ａ" || island === "２Ｂ") && rank >= 5) to2.push(g);
+    else if ((island === "１Ａ" || island === "１Ｂ") && rank <= 4) to2.push(g);
+    else if ((island === "１Ａ" || island === "１Ｂ") && rank >= 5) to1A.push(g);
+  });
+
+  /* ===== 3A ===== */
+  to3A
+    .sort((a, b) => a.powerRankAll - b.powerRankAll)
+    .forEach((g, i) => {
+      g.day2.result = { island: "３Ａ", rank: i + 1 };
+    });
+
+  /* ===== 2A / 2B ===== */
+  let ca = 0, cb = 0;
+  to2
+    .sort((a, b) => a.powerRankAll - b.powerRankAll)
+    .forEach((g, i) => {
+      if ((i + 1) % 2 === 1) {
+        ca++;
+        g.day2.result = { island: "２Ａ", rank: ca };
+      } else {
+        cb++;
+        g.day2.result = { island: "２Ｂ", rank: cb };
+      }
+    });
+
+  /* ===== 1A ===== */
+  to1A
+    .sort((a, b) => a.powerRankAll - b.powerRankAll)
+    .forEach((g, i) => {
+      g.day2.result = { island: "１Ａ", rank: i + 1 };
+    });
+
+  /* ===== 表示（★ここが重要）===== */
+  groups.forEach(g => {
+    const el = document.querySelector(`#day2-rank-${g.id}`)?.closest("tr")?.querySelector(".result");
+    if (!el) return;
+
+    el.textContent = g.day2.result
+      ? `${g.day2.result.island}-${g.day2.result.rank}位`
+      : "";
+  });
+
+  /* ===== 3日目島決定 ===== */
+  groups.forEach(g => {
+
+    // day3が無い古いデータ対策
+    if (!g.day3) {
+      g.day3 = {
+        island: null,
+        rank: null,
+        result: null
+      };
+    }
+
+    g.day3.island = g.day2.result?.island ?? null;
+  });
+
+  /* ===== 3日目 初期順位（戦力順 1～8）===== */
+  DAY3_ISLANDS.forEach(island => {
+
+    const list = groups
+      .filter(g => g.day3?.island === island)
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll);
+
+    list.forEach((g,i)=>{
+      g.day3.rank = i+1;
+    });
+
+  });
+
+  saveData();
+  renderDay3();
+}
+
+/* =============================
+   3日目 計算（完全版）
+============================= */
+function calcDay3(){
+
+  groups.forEach(g=>{
+    if (g.day3) {
+      g.day3.result = null;
+    }
+  });
+
+  clearDay3RankErrors();
+
+  let hasAnyError = false;
+
+  // ===== 順位エラーチェック（島単位）===== 
+  DAY3_ISLANDS.forEach(island=>{
+
+    const list = groups.filter(g=>g.day3?.island===island);
+    const seen = {};
+
+    list.forEach(g=>{
+
+      const v = g.day3.rank;
+
+      if(!v || v<1 || v>8){
+        markDay3RankError(g);
+        hasAnyError = true;
+      }
+
+      if(seen[v]){
+        markDay3RankError(g);
+        markDay3RankError(seen[v]);
+        hasAnyError = true;
+      }
+
+      seen[v] = g;
+    });
+  });
+
+  // ===== エラー表示 ===== 
+  if(hasAnyError){
+    groups.forEach(g=>{
+      const r=document.getElementById(`r3-${g.id}`);
+      if(r){
+        r.textContent="エラー";
+        r.classList.add("error");
+      }
+    });
+    return;
+  }
+
+  /* ===== 総合順位計算 ===== */
+  calcTotalPoints();
+
+  // ===== 結果表示 ===== 
+  groups.forEach(g=>{
+    const r=document.getElementById(`r3-${g.id}`);
+    if(!r) return;
+
+    r.classList.remove("error");
+
+    if(g.totalRank){
+      r.textContent =
+        `総合${g.totalRank}位（${g.totalPoint}pt）`;
+    }else{
+      r.textContent="";
+    }
+  });
+
+  saveData();
+}
+
+
+/* =============================
+   a / b 配置
+============================= */
+function assignAB(list,a,b){
+  let ca=0, cb=0;
+  list.forEach(g=>{
+    if(g.rankInTarget%2===1){
+      ca++;
+      g.day1Result={island:a,rank:ca};
+    }else{
+      cb++;
+      g.day1Result={island:b,rank:cb};
+    }
+  });
+}
+
+/* =============================
+   エラー制御
+============================= */
+function markRankError(g){
+  const el=document.getElementById(`rank-${g.id}`);
+  if(el) el.classList.add("rank-error");
+}
+
+function clearRankErrors(){
+  document.querySelectorAll(".rank-error")
+    .forEach(e=>e.classList.remove("rank-error"));
+}
+
+function markDay2RankError(g) {
+  const el = document.getElementById(`day2-rank-${g.id}`);
+  if (el) el.classList.add("rank-error");
+}
+
+function clearDay2RankErrors() {
+  document.querySelectorAll("[id^='day2-rank-']")
+    .forEach(el => el.classList.remove("rank-error"));
+}
+
+function markDay3RankError(g) {
+  const el = document.getElementById(`day3-rank-${g.id}`);
+  if (el) el.classList.add("rank-error");
+}
+
+function clearDay3RankErrors() {
+  document.querySelectorAll("[id^='day3-rank-']")
+    .forEach(el => el.classList.remove("rank-error"));
+}
+
+
+/* =============================
+   Enterキー タブオーダー
+============================= */
+document.addEventListener("keydown", e => {
+  if (e.key !== "Enter") return;
+  if (!e.target.classList.contains("edit")) return;
+
+  e.preventDefault();
+  const order = [];
+
+  /* ===== どのタブが開いているか ===== */
+  const isDay1 = document.getElementById("day1").classList.contains("active");
+  const isDay2 = document.getElementById("day2").classList.contains("active");
+  const isDay3 = document.getElementById("day3").classList.contains("active");
+  /* ===== 1日目 ===== */
+  if (isDay1) {
+    DAY1_ISLANDS.forEach(island => {
+      const list = groups.filter(g => g.day1Island === island);
+      list.forEach(g => order.push(document.getElementById(`rank-${g.id}`)));
+      list.forEach(g => order.push(document.getElementById(`name-${g.id}`)));
+      list.forEach(g => order.push(document.getElementById(`power-${g.id}`)));
+    });
+  }
+
+  /* ===== 2日目 ===== */
+  if (isDay2) {
+    DAY2_ISLANDS.forEach(island => {
+      const list = groups.filter(g => g.day2?.island === island)
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll);//ソートの並び替え直し
+      list.forEach(g =>order.push(document.getElementById(`day2-rank-${g.id}`)));
+    });
+  }
+
+if (isDay3) {
+  DAY3_ISLANDS.forEach(island => {
+    const list = groups
+      .filter(g => g.day3?.island === island)
+      .sort((a,b)=>a.powerRankAll-b.powerRankAll);
+    list.forEach(g =>
+      order.push(document.getElementById(`day3-rank-${g.id}`))
+    );
+  });
+}
+
+
+  /* ===== フォーカス移動 ===== */
+  const i = order.indexOf(e.target);
+  if (i >= 0 && order[i + 1]) {
+    order[i + 1].focus();
+  }
+});
+
+
+/* =============================
+   フォーカス時 全選択（数字入力用）
+============================= */
+document.addEventListener("focusin", e => {
+  if (!e.target.classList.contains("edit")) return;
+
+  // 数字入力欄のみ対象（順位・戦力）
+  if (
+    e.target.classList.contains("rank") ||
+    e.target.classList.contains("power")
+  ) {
+    const range = document.createRange();
+    range.selectNodeContents(e.target);
+
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+});
+
+</script>
+
+</body>
+</html>
