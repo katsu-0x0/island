@@ -163,6 +163,7 @@ th,td {
 
 .modal-content{
   background:#1e1e1e;
+  color:white; 
   padding:20px;
   border-radius:12px;
   width:90%;
@@ -294,19 +295,69 @@ let currentPlacementDay = "day1";
 /* =============================
    団員情報一括入力
 ============================= */
+let modal;
+let modalContent;
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  modal = document.getElementById("bulkModal");
+  modalContent = document.querySelector(".modal-content");
+
+  if (modal && modalContent) {
+
+    // 背景クリックで閉じる
+    modal.addEventListener("click", function(){
+      closeBulkModal();
+    });
+
+    // 中クリックでは閉じない
+    modalContent.addEventListener("click", function(e){
+      e.stopPropagation();
+    });
+  }
+
+});
+
+
 function openBulkModal(){
-  document.getElementById("bulkModal").style.display = "flex";
+  modal.style.display = "flex";
 }
 
-function closeBulkModal(event){
+function closeBulkModal(){
+  modal.style.display = "none";
+}
 
-  const modal = document.getElementById("bulkModal");
+function applyBulkNames(){
 
-  // 背景クリック時のみ閉じる
-  if(!event || event.target === modal){
-    modal.style.display = "none";
-    document.getElementById("bulkMessage").textContent = "";
+  const textarea = document.getElementById("bulkNames");
+
+  const names = textarea.value
+    .split(/[\r\n,]+/)
+    .map(n => n.trim())
+    .filter(n => n !== "");
+
+  if(names.length === 0){
+    alert("団名が入力されていません。");
+    return;
   }
+
+  if(names.length > groups.length){
+    alert(`入力数が多すぎます（最大 ${groups.length} 件）`);
+    return;
+  }
+
+  groups.forEach((g,i)=>{
+    if(names[i]){
+      g.name = names[i];
+    }
+  });
+
+  saveData?.();
+  renderDay1?.();
+  renderDay2?.();
+  renderDay3?.();
+
+  closeBulkModal();   // ← ここで閉じる
 }
 
 
@@ -1215,10 +1266,10 @@ document.addEventListener("focusin", e => {
       <button onclick="applyBulkNames()">反映</button>
       <button onclick="closeBulkModal()">閉じる</button>
     </div>
-
-    <div id="bulkMessage" class="bulk-message"></div>
   </div>
 </div>
+
+
 
 </body>
 </html>
