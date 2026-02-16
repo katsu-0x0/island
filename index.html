@@ -138,12 +138,27 @@ th,td {
   pointer-events: none; /* 画像操作の邪魔をしない */
 }
 
+.top-buttons{
+  display:flex;
+  gap:10px;
+  margin-bottom:15px;
+}
+
+.top-buttons button{
+  padding:6px 12px;
+  border:none;
+  border-radius:6px;
+  cursor:pointer;
+}
+
+
 </style>
 </head>
 
 <body>
 
 <h1>島配置管理</h1>
+
 
 <div class="tabs">
   <button class="tab active" data-tab="day1">1日目</button>
@@ -152,7 +167,11 @@ th,td {
   <button class="tab" data-tab="placement">配置表示</button>
 </div>
 
-<button class="reset" onclick="resetAll()">入力情報を初期化</button>
+<div class="top-buttons">
+  <button onclick="resetAll()">入力情報を初期化</button>
+  <button onclick="openBulkModal()">団名を一括入力</button>
+</div>
+
 
 <div id="placement" class="tab-content">
 <div class="tabs">
@@ -187,6 +206,21 @@ th,td {
   <div id="day3-area"></div>
 </div>
 
+<div id="bulkModal" class="modal" onclick="closeBulkModal(event)">
+  <div class="modal-content">
+    <h3>団名一括入力</h3>
+
+    <textarea id="bulkNames"
+      placeholder="1行に1団名（Excel貼り付けOK）"></textarea>
+
+    <div class="modal-buttons">
+      <button onclick="applyBulkNames()">反映</button>
+      <button onclick="closeBulkModal()">閉じる</button>
+    </div>
+
+    <div id="bulkMessage" class="bulk-message"></div>
+  </div>
+</div>
 
 
 <script>
@@ -242,6 +276,25 @@ const FIXED_POSITIONS = [
 
 let groups = [];
 let currentPlacementDay = "day1";
+
+/* =============================
+   団員情報一括入力
+============================= */
+function openBulkModal(){
+  document.getElementById("bulkModal").style.display = "flex";
+}
+
+function closeBulkModal(event){
+
+  const modal = document.getElementById("bulkModal");
+
+  // 背景クリック時のみ閉じる
+  if(!event || event.target === modal){
+    modal.style.display = "none";
+    document.getElementById("bulkMessage").textContent = "";
+  }
+}
+
 
 /* =============================
    島配置表示選択
