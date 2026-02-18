@@ -45,8 +45,8 @@ table {
 }
 th,td {
   border: 1px solid #999;
-  padding: 2px;
-  font-size: 12px;
+  padding: 1px;
+  font-size: 10px;
   text-align: center;
 }
 .input-cell { background: #e3f2fd; }
@@ -332,7 +332,7 @@ function applyBulkNames(){
   const textarea = document.getElementById("bulkNames");
 
   const names = textarea.value
-    .split(/[\r\n,]+/)
+    .split(/[\r\n、]+/)
     .map(n => n.trim())
     .filter(n => n !== "");
 
