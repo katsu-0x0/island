@@ -62,7 +62,7 @@ th,td {
 .edit:focus { background: #bbdefb; }
 
 .rank-error { background: #ffcdd2 !important; }
-.result { font-size: 11px; font-weight: bold; }
+.result { font-size: 10px; font-weight: bold; }
 .error { color: red; }
 .small { font-size: 10px; }
 
@@ -127,6 +127,10 @@ th,td {
   overflow: visible;
 }
 
+/* ===== 改行しない調整 ===== */
+.result {
+  white-space: nowrap;
+}
 
 /* ===== 団名セル ===== */
 .map-group {
