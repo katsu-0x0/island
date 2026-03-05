@@ -625,14 +625,17 @@ function renderDay1() {
         const v = sanitizeNumberEditable(e.target);
         g.day1Rank = Number(v);
         calcDay1();
+        saveData();
       };
       tr.querySelector(`#name-${g.id}`).oninput = e=>{
         g.name = e.target.textContent;
+        saveData();
       };
       tr.querySelector(`#power-${g.id}`).oninput = e=>{
         const v = sanitizeNumberEditable(e.target);
         g.power = Number(v);
         calcDay1();
+        saveData();
       };
 
       table.appendChild(tr);
@@ -642,6 +645,7 @@ function renderDay1() {
   });
 
   calcDay1();
+  saveData();
 }
 
 /* =============================
@@ -668,8 +672,10 @@ function transferDay1ToDay2() {
       .sort((a, b) => a.powerRankAll - b.powerRankAll);
 
     list.forEach((g, i) => {
-      g.day2.rank = i + 1; // ★ 戦力順 1～8
-    });
+      if (!g.day2.rank) {   // ← 既存データがある場合は保持
+        g.day2.rank = i + 1;
+      }
+    });  
   });
 }
 
@@ -775,6 +781,7 @@ function renderDay3() {
           const v = sanitizeNumberEditable(e.target);
           g.day3.rank = Number(v);
           calcDay3();   // ★ 再描画しない
+          saveData();
         };
 
         table.appendChild(tr);
@@ -784,6 +791,7 @@ function renderDay3() {
   });
 
   calcDay3();
+  saveData();
 }
 
 
@@ -1051,7 +1059,9 @@ function calcDay2() {
       .sort((a,b)=>a.powerRankAll-b.powerRankAll);
 
     list.forEach((g,i)=>{
-      g.day3.rank = i+1;
+      if (!g.day3.rank) {   // ← 保存値を優先
+        g.day3.rank = i+1;
+      }
     });
 
   });
